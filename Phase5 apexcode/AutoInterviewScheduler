@@ -1,0 +1,15 @@
+global class AutoInterviewScheduler implements Schedulable {
+    global void execute(SchedulableContext sc) {
+        List<Youth__c> allYouths = [SELECT Id FROM Youth__c];
+        for (Youth__c y : allYouths) {
+            List<Job__c> matchedJobs = JobMatchingController.getMatchedJobs(y.Id);
+            for (Job__c job : matchedJobs) {
+                Integer existing = [SELECT COUNT() FROM Interview__c WHERE Candidate__c = :y.Id AND Job__c = :job.Id];
+                if (existing == 0) {
+                    Id interviewId = JobMatchingController.createInterview(y.Id, job.Id, null, UserInfo.getUserId());
+                    System.debug('Interview created: ' + interviewId);
+                }
+            }
+        }
+    }
+}
