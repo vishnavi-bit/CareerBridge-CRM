@@ -1,0 +1,49 @@
+trigger YouthAfterInsert on Youth__c (after insert) {
+    List<Interview__c> interviewsToCreate = new List<Interview__c>();
+    List<String> emailJsonList = new List<String>();
+
+    for(Youth__c y : Trigger.new){
+        if(String.isBlank(y.Email__c)) continue;
+
+        // 1️⃣ Always send Welcome Email
+        Map<String,String> welcomeEmail = new Map<String,String>{
+            'to' => y.Email__c,
+            'subject' => 'Welcome to CareerBridge',
+            'body' => 'Hello ' + y.Name + ',\n\nThank you for registering with CareerBridge. Your skills (' + y.Preferred_Role__c + ') are now recorded.'
+        };
+        emailJsonList.add(JSON.serialize(welcomeEmail));
+
+        // 2️⃣ Find matching jobs
+        List<Job__c> matchedJobs = [SELECT Id, Name FROM Job__c WHERE Name = :y.Preferred_Role__c];
+
+        if(!matchedJobs.isEmpty()){
+            for(Job__c job : matchedJobs){
+                // Create interview
+                Interview__c iv = new Interview__c(
+                    Candidate__c = y.Id,
+                    Job__c = job.Id,
+                    Interview_Date__c = System.now().addHours(1),
+                    Status__c = 'Scheduled'
+                );
+                interviewsToCreate.add(iv);
+
+                // Prepare Interview Scheduled Email
+                Map<String,String> interviewEmail = new Map<String,String>{
+                    'to' => y.Email__c,
+                    'subject' => 'Interview Scheduled for ' + job.Name,
+                    'body' => 'Hello ' + y.Name + ',\n\nCongratulations! You have been shortlisted for the ' + job.Name + ' position.\nYour interview is scheduled on ' + iv.Interview_Date__c.format('dd/MM/yyyy hh:mm a') + '.\n\nBest regards,\nCareerBridge Team'
+                };
+                emailJsonList.add(JSON.serialize(interviewEmail));
+            }
+        }
+    }
+
+    if(!interviewsToCreate.isEmpty()){
+        insert interviewsToCreate;
+    }
+
+    if(!emailJsonList.isEmpty()){
+        // Send emails asynchronously to avoid governor limit
+        YouthEmailService.sendEmails(emailJsonList);
+    }
+}
