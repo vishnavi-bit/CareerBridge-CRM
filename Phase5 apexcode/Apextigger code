@@ -1,0 +1,59 @@
+trigger YouthAfterInsert on Youth__c (after insert) {
+    List<Messaging.SingleEmailMessage> emailsToSend = new List<Messaging.SingleEmailMessage>();
+    List<Interview__c> interviewsToCreate = new List<Interview__c>();
+
+    for(Youth__c y : Trigger.new){
+        if(String.isBlank(y.Email__c)) continue;
+
+        // Find all Jobs that match the Youth's Preferred Role
+        List<Job__c> matchedJobs = [SELECT Id, Name 
+                                    FROM Job__c 
+                                    WHERE Name = :y.Preferred_Role__c];
+
+        // 1️⃣ Always send Welcome Email
+        Messaging.SingleEmailMessage welcomeMail = new Messaging.SingleEmailMessage();
+        welcomeMail.setToAddresses(new String[] {y.Email__c});
+        welcomeMail.setSubject('Welcome to CareerBridge');
+        welcomeMail.setPlainTextBody(
+            'Hello ' + y.Name + ',\n\n' +
+            'Thank you for registering with CareerBridge. Your skills (' + y.Preferred_Role__c + ') are now recorded.\n' +
+            (matchedJobs.isEmpty() 
+                ? 'We will notify you when matching jobs are posted.' 
+                : 'You have matching jobs available now.')
+        );
+        emailsToSend.add(welcomeMail);
+
+        // 2️⃣ If match exists, create interview & send Interview Email
+        if(!matchedJobs.isEmpty()){
+            for(Job__c job : matchedJobs){
+                // Create interview
+                Interview__c iv = new Interview__c(
+                    Candidate__c = y.Id,
+                    Job__c = job.Id,
+                    Interview_Date__c = System.now().addHours(1),
+                    Status__c = 'Scheduled'
+                );
+                interviewsToCreate.add(iv);
+
+                // Send Interview Scheduled Email
+                Messaging.SingleEmailMessage interviewMail = new Messaging.SingleEmailMessage();
+                interviewMail.setToAddresses(new String[] {y.Email__c});
+                interviewMail.setSubject('Interview Scheduled for ' + job.Name);
+                interviewMail.setPlainTextBody(
+                    'Hello ' + y.Name + ',\n\n' +
+                    'Congratulations! You have been shortlisted for the ' + job.Name + ' position.\n' +
+                    'Your interview is scheduled on ' + iv.Interview_Date__c.format('dd/MM/yyyy hh:mm a') + '.\n\n' +
+                    'Best regards,\nCareerBridge Team'
+                );
+                emailsToSend.add(interviewMail);
+            }
+        }
+    }
+
+    if(!interviewsToCreate.isEmpty()){
+        insert interviewsToCreate;
+    }
+    if(!emailsToSend.isEmpty()){
+        Messaging.sendEmail(emailsToSend);
+    }
+}
