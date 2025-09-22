@@ -15,3 +15,8 @@ Proposed Salesforce Solution
   - Number of youth placed in jobs
   - Skill gaps
   - Program progress and results
+
+
+
+🏢 CareerBridge Demo Video
+(https://drive.google.com/file/d/1N4-vyIertj9fSkOOp-pB6nopiQgjavbw/view?usp=sharing)
